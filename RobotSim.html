@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<!--
+Copyright (c) 2020 Brian Kircher - All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1,
+                                   user-scalable=no">
+    <title>
+      Open Loop
+    </title>
+    <script src="extern/jquery-3.5.0.min.js"></script>
+    <script type="text/javascript" src="extern/paper-full.min.js"></script>
+    <script type="text/paperscript" canvas="canvas">
+      var assets =
+      {
+        robot: new function()
+        {
+          var body = new Path.Rectangle(new Rectangle([-50, -50], [100, 100]),
+                                        [5, 5]);
+          body.fillColor = "#dce3e9";
+          body.strokeColor = "black";
+
+          var leftWheel = new Path.Rectangle(new Rectangle([-55, -35],
+                                                           [10, 70]), [5, 5]);
+          leftWheel.fillColor = "#8cfbfc";
+          leftWheel.strokeColor = "black";
+
+          var rightWheel = new Path.Rectangle(new Rectangle([45, -35],
+                                                            [10, 70]), [5, 5]);
+          rightWheel.fillColor = "#8cfbfc";
+          rightWheel.strokeColor = "black";
+
+          var leftSensor = new Path.Circle([-25, -50], 10);
+          leftSensor.fillColor = "white";
+          leftSensor.strokeColor = "black";
+
+          var rightSensor = new Path.Circle([25, -50], 10);
+          rightSensor.fillColor = "white";
+          rightSensor.strokeColor = "black";
+
+          var backSensor = new Path.Circle([0, 50], 10);
+
+          var robot = new Group(body, leftWheel, rightWheel, leftSensor,
+                                rightSensor, backSensor);
+          robot.visible = false;
+
+          return(robot);
+        }
+      };
+
+      var Field = new function()
+      {
+        var grid = new Group();
+
+        for(var i = -3000; i <= 3000; i += 200)
+        {
+          var marker = new Path.Line(-3000, i, 3000, i);
+          marker.strokeColor = "#cccccc";
+          grid.addChild(marker);
+          marker = new Path.Line(i, -3000, i, 3000);
+          marker.strokeColor = "#cccccc";
+          grid.addChild(marker);
+        }
+
+        var path = new Path();
+        path.closed = false;
+        path.add([-15, 0]);
+        path.add([-15, -2000]);
+        path.add([60, -2400]);
+        path.add([60, -3200]);
+        path.add([-15, -3600]);
+        path.add([-15, -4400]);
+        path.add([-90, -4800]);
+        path.add([-90, -5600]);
+        path.add([-15, -6000]);
+        path.add([-15, -6800]);
+        path.arcTo([15, -7000], [105, -7200]);
+        path.arcTo([195, -7400], [225, -7600]);
+        path.add([225, -8000]);
+        path.arcTo([195, -8200], [105, -8400]);
+        path.arcTo([15, -8600], [-15, -8800]);
+        path.add([-15, -9600]);
+        path.arcTo([-45, -9800], [-135, -10000]);
+        path.arcTo([-225, -10200], [-255, -10400]);
+        path.add([-255, -10800]);
+        path.arcTo([-225, -11000], [-135, -11200]);
+        path.arcTo([-45, -11400], [-15, -11600]);
+        path.add([-15, -12400]);
+        path.arcTo([-45, -12600], [-135, -12800]);
+        path.arcTo([0, -13050], [135, -12800]);
+        path.arcTo([45, -12600], [15, -12400]);
+        path.add([15, -11600]);
+        path.arcTo([-15, -11400], [-105, -11200]);
+        path.arcTo([-195, -11000], [-225, -10800]);
+        path.add([-225, -10400]);
+        path.arcTo([-195, -10200], [-105, -10000]);
+        path.arcTo([-15, -9800], [15, -9600]);
+        path.add([15, -8800]);
+        path.arcTo([45, -8600], [135, -8400]);
+        path.arcTo([225, -8200], [255, -8000]);
+        path.add([255, -7600]);
+        path.arcTo([225, -7400], [135, -7200]);
+        path.arcTo([45, -7000], [15, -6800]);
+        path.add([15, -6000]);
+        path.add([-60, -5600]);
+        path.add([-60, -4800]);
+        path.add([15, -4400]);
+        path.add([15, -3600]);
+        path.add([90, -3200]);
+        path.add([90, -2400]);
+        path.add([15, -2000]);
+        path.add([15, 800]);
+        path.arcTo([45, 1000], [135, 1200]);
+        path.arcTo([0, 1450], [-135, 1200]);
+        path.arcTo([-45, 1000], [-15, 800]);
+        path.add([-15, 0]);
+        path.fillColor = "black";
+        path.strokeColor = "black";
+        path.visible = false;
+
+        return {
+          grid: grid,
+          path: path,
+
+          reset : function()
+          {
+            var viewBounds = view.bounds;
+            var itemBounds = this.path.bounds;
+
+            this.path.position = viewBounds.center;
+            this.path.position.y -= (itemBounds.height / 2) - 1400;
+
+            if((globals.mode === "line") || (globals.mode === "line2") ||
+               (globals.mode === "line3"))
+            {
+              this.path.visible = true;
+            }
+            else
+            {
+              this.path.visible = false;
+            }
+
+            this.grid.position = viewBounds.center;
+          },
+
+          resize: function()
+          {
+            position = Robot.position();
+
+            this.move(view.bounds.center.x - position.x,
+                      view.bounds.center.y - position.y);
+          },
+
+          move: function(x, y)
+          {
+            this.grid.position.x += x;
+            while((this.grid.position.x - view.bounds.center.x) >= 200)
+            {
+              this.grid.position.x -= 200;
+            }
+            while((this.grid.position.x - view.bounds.center.x) <= -200)
+            {
+              this.grid.position.x += 200;
+            }
+            this.grid.position.y += y;
+            while((this.grid.position.y - view.bounds.center.y) >= 200)
+            {
+              this.grid.position.y -= 200;
+            }
+            while((this.grid.position.y - view.bounds.center.y) <= -200)
+            {
+              this.grid.position.y += 200;
+            }
+
+            this.path.position.x += x;
+            this.path.position.y += y;
+          },
+
+          intersects: function(path)
+          {
+            if(this.path.visible === false)
+            {
+              return(false);
+            }
+            return(this.path.intersects(path));
+          },
+
+          contains: function(point)
+          {
+            if(this.path.visible === false)
+            {
+              return(false);
+            }
+            return(this.path.contains(point));
+          }
+        };
+      };
+
+      var Robot = new function()
+      {
+        var robot = assets.robot.clone();
+        robot.visible = true;
+        robot.position = view.bounds.center;
+        robot.bringToFront();
+
+        return {
+          robot: robot,
+          angle: 0,
+          error: 0,
+          steer: 0,
+          sensor: 0,
+          drift: 0,
+          count: 0,
+
+          reset: function()
+          {
+            this.robot.visible = false;
+            this.robot = assets.robot.clone();
+            this.robot.visible = true;
+            this.robot.bringToFront();
+            this.robot.position = view.bounds.center;
+            this.angle = 0;
+            this.drift = 0.025 - (0.05 * Math.random());
+            this.updateSensor();
+          },
+
+          position: function()
+          {
+            return(this.robot.position);
+          },
+
+          resize: function()
+          {
+            this.robot.position = view.bounds.center;
+          },
+
+          rotate: function(angle)
+          {
+            this.robot.rotate(angle);
+            this.angle += angle;
+          },
+
+          updateSensor: function()
+          {
+            if(globals.mode === "gyro")
+            {
+              this.sensor = Math.round(this.angle, 0);
+            }
+            else
+            {
+              this.sensor = (globals.sensor == 0) ? this.getLeft() :
+                                                    this.getRight();
+            }
+          },
+
+          update: function()
+          {
+            var value = this.sensor;
+
+            if(globals.mode === "line")
+            {
+              this.error = value - 50;
+              this.steer = this.error * globals.kp;
+            }
+            else if(globals.mode === "line2")
+            {
+              this.count++;
+              if(this.count > 5)
+              {
+                if(value < 50)
+                {
+                  this.steer = -globals.max_steer / 2;
+                }
+                else
+                {
+                  this.steer = globals.max_steer / 2;
+                }
+                this.count = 0;
+              }
+            }
+            else if(globals.mode === "line3")
+            {
+              this.count++;
+              if(this.count > 5)
+              {
+                if((value >= 40) && (value <= 60))
+                {
+                  this.steer = 0;
+                }
+                else if(value < 50)
+                {
+                  this.steer = -globals.max_steer / 2;
+                }
+                else
+                {
+                  this.steer = globals.max_steer / 2;
+                }
+                this.count = 0;
+              }
+            }
+            else if(globals.mode === "gyro")
+            {
+              this.error = value - globals.heading;
+              this.steer = this.error * globals.kp;
+            }
+            else
+            {
+              this.error = 0;
+              this.steer = globals.steer;
+            }
+
+            if(this.steer > globals.max_steer)
+            {
+              this.steer = globals.max_steer;
+            }
+            if(this.steer < -globals.max_steer)
+            {
+              this.steer = -globals.max_steer;
+            }
+          },
+
+          step: function()
+          {
+            var w, s, Di, Dm, Do, pt, a;
+
+            Graph.addSample(this.angle, this.error, this.steer);
+
+            w = 100;
+
+            s = ((globals.max_steer - (Math.abs(this.steer) * 2)) /
+                 globals.max_steer);
+
+            if(s == 1)
+            {
+              pt = new Point(0, globals.power / 10);
+              a = 0;
+            }
+            else
+            {
+              Di = (2 * s * w) / (1 - s);
+              Dm = Di + w;
+              Do = Di + (2 * w);
+
+              a = 360 * (globals.power / 10) / (Do * Math.PI);
+
+              Dm /= 2;
+
+              pt = new Point(Dm - (Dm * Math.cos(a * Math.PI / 180)),
+                             Dm * Math.sin(a * Math.PI / 180));
+              if(this.steer < 0)
+              {
+                pt.x *= -1;
+                a *= -1;
+              }
+            }
+
+            pt = pt.rotate(this.drift);
+            a += this.drift;
+
+            pt = pt.rotate(this.angle);
+            Field.move(pt.x, pt.y);
+            this.rotate(a);
+            this.updateSensor();
+          },
+
+          readSensor: function(pos)
+          {
+            var on = 0;
+            var count = 0;
+
+            for(var y = -10; y <= 10; y++)
+            {
+              for(var x = -10; x <= 10; x++)
+              {
+                if(((x * x) + (y * y)) <= 100)
+                {
+                  if(Field.contains(pos + [x, y]) == true)
+                  {
+                    on++;
+                  }
+                  count++;
+                }
+              }
+            }
+
+            return(Math.floor(((count - on) * 100) / count));
+          },
+
+          getLeft: function()
+          {
+            return(this.readSensor(this.robot.children[3].position));
+          },
+
+          setLeft: function(intensity)
+          {
+            this.robot.children[3].fillColor = new Color(intensity / 100,
+                                                         intensity / 100,
+                                                         intensity / 100);
+          },
+
+          getRight: function()
+          {
+            return(this.readSensor(this.robot.children[4].position));
+          },
+
+          setRight: function(intensity)
+          {
+            this.robot.children[4].fillColor = new Color(intensity / 100,
+                                                         intensity / 100,
+                                                         intensity / 100);
+          },
+
+          getAngle: function()
+          {
+              return(Math.round(this.angle));
+          },
+
+          getError: function()
+          {
+            return(this.error);
+          },
+
+          getSteer: function()
+          {
+            return(this.steer);
+          }
+        };
+      };
+
+      var Display = new function()
+      {
+        return {
+          update: function()
+          {
+            var elem;
+            var intensity;
+
+            intensity = Robot.getLeft();
+            Robot.setLeft(intensity);
+            $("#sensor_left").html(intensity);
+            intensity = (255 * intensity) / 100;
+            $("#sensor_left_color").css("background-color",
+                                        "rgb(" + intensity + ", " + intensity +
+                                        ", " + intensity + ")");
+
+            intensity = Robot.getRight();
+            Robot.setRight(intensity);
+            $("#sensor_right").html(intensity);
+            intensity = (255 * intensity) / 100;
+            $("#sensor_right_color").css("background-color",
+                                         "rgb(" + intensity + ", " +
+                                         intensity + ", " + intensity + ")");
+
+            $("#sensor_gyro").html(Math.round(Robot.getAngle() * 100) / 100);
+
+            $("#error").html(Math.round(Robot.getError() * 100) / 100);
+
+            $("#steerOut").html(Math.round(Robot.getSteer() * 100) / 100);
+          }
+        };
+      };
+
+      var Graph = new function()
+      {
+        var angleGraph = (new Project("angleGraph")).activeLayer;
+        var c = angleGraph.addChild(new Path.Circle(0, 0, 79));
+        c.strokeColor = "black";
+        c.fillColor = "black";
+        var errorGraph = (new Project("errorGraph")).activeLayer;
+        c = errorGraph.addChild(new Path.Circle(80, 0, 79));
+        c.strokeColor = "red";
+        c.fillColor = "red";
+        var steerGraph = (new Project("steerGraph")).activeLayer;
+        c = steerGraph.addChild(new Path.Circle(00, 40, 39));
+        c.strokeColor = "green";
+        c.fillColor = "green";
+
+        return {
+          angleGraph: angleGraph,
+          errorGraph: errorGraph,
+          steerGraph: steerGraph,
+          angle: [],
+          error: [],
+          steer: [],
+          step: 0,
+
+          draw: function(width, height, range, data)
+          {
+            var g, a, d, i, x, y;
+
+            g = new Group();
+
+            for(i = 0; i < 5; i++)
+            {
+              a = new Path();
+              a.moveTo(new Point(0, (i * height) / 4));
+              a.lineTo(new Point(width, (i * height) / 4));
+              a.strokeColor = "#cccccc";
+              g.addChild(a);
+            }
+
+            for(i = 0; i < 7; i++)
+            {
+              a = new Path();
+              a.moveTo(new Point((i * width) / 6, 0));
+              a.lineTo(new Point((i * width) / 6, height));
+              a.strokeColor = "#cccccc";
+              g.addChild(a);
+            }
+
+            a = new CompoundPath();
+
+            for(i = 0; i < data.length; i++)
+            {
+              d = data[data.length - i - 1];
+
+              x = (((30 * 60) - i) * width) / (30 * 60);
+              y = ((d + range) * height) / (range * 2);
+
+              if((i == 0) ||
+                 ((d > (range - 20)) &&
+                  (data[data.length - i] < (20 - range))) ||
+                 ((d < (20 - range)) &&
+                  (data[data.length - i] > (range - 20))))
+              {
+                a.moveTo(new Point(x, y));
+              }
+              else
+              {
+                a.lineTo(new Point(x, y));
+              }
+            }
+
+            a.strokeColor = "black";
+
+            g.addChild(a);
+
+            a = new PointText(new Point(0, 10));
+            a.content = range;
+            a.strokeColor = "#4285f4";
+            a.fillColor = "#4285f4";
+
+            g.addChild(a);
+
+            a = new PointText(new Point(0, (height / 2) + 5));
+            a.content = 0;
+            a.strokeColor = "#4285f4";
+            a.fillColor = "#4285f4";
+
+            g.addChild(a);
+
+            a = new PointText(new Point(0, height - 1));
+            a.content = -range;
+            a.strokeColor = "#4285f4";
+            a.fillColor = "#4285f4";
+
+            g.addChild(a);
+
+            return(g);
+          },
+
+          drawAngle: function()
+          {
+            var p;
+
+            p = this.draw(this.angleGraph.view.bounds.width - 1,
+                          this.angleGraph.view.bounds.height - 1, 180,
+                          this.angle);
+
+            this.angleGraph.removeChildren();
+            this.angleGraph.addChild(p);
+          },
+
+          drawError: function()
+          {
+            var p;
+
+            p = this.draw(this.errorGraph.view.bounds.width - 1,
+                          this.errorGraph.view.bounds.height - 1, 100,
+                          this.error);
+
+            this.errorGraph.removeChildren();
+            this.errorGraph.addChild(p);
+          },
+
+          drawSteer: function()
+          {
+            var p;
+
+            p = this.draw(this.steerGraph.view.bounds.width - 1,
+                          this.steerGraph.view.bounds.height - 1,
+                          globals.max_steer, this.steer);
+
+            this.steerGraph.removeChildren();
+            this.steerGraph.addChild(p);
+          },
+
+          reset: function()
+          {
+            this.angle = [];
+            this.error = [];
+            this.steer = [];
+
+            this.drawAngle();
+            this.drawError();
+            this.drawSteer();
+          },
+
+          addSample: function(angle, error, steer)
+          {
+            while(angle > 180)
+            {
+              angle -= 360;
+            }
+            while(angle <= -180)
+            {
+              angle += 360;
+            }
+            this.angle.push(0 - angle);
+            while(this.angle.length > (30 * 60))
+            {
+              this.angle.shift();
+            }
+
+            this.error.push(0 - error);
+            while(this.error.length > (30 * 60))
+            {
+              this.error.shift();
+            }
+
+            this.steer.push(0 - steer);
+            while(this.steer.length > (30 * 60))
+            {
+              this.steer.shift();
+            }
+
+            this.drawAngle();
+            this.drawError();
+            this.drawSteer();
+          }
+        };
+      };
+
+      function onFrame()
+      {
+        if(globals.reset == true)
+        {
+          Field.reset();
+          Robot.reset();
+          Robot.update();
+          Display.update();
+          Graph.reset();
+          globals.run = false;
+          globals.reset = false;
+          globals.random = false;
+          globals.update = false;
+        }
+        if(globals.random == true)
+        {
+          Field.reset();
+          if((globals.mode === "line") || (globals.mode === "line2") ||
+             (globals.mode === "line3"))
+          {
+            Field.move(10 - Math.floor(20 * Math.random()), 0);
+          }
+          Robot.reset();
+          if((globals.mode === "line") || (globals.mode === "line2") ||
+             (globals.mode === "line3"))
+          {
+            Robot.rotate(15 - (30 * Math.random()));
+          }
+          else if(globals.mode === "gyro")
+          {
+            Robot.rotate(30 - (60 * Math.random()));
+          }
+          Robot.updateSensor();
+          Robot.update();
+          Display.update();
+          Graph.reset();
+          globals.run = false;
+          globals.reset = false;
+          globals.random = false;
+          globals.update = false;
+        }
+        if((globals.run == true) || (globals.step == true))
+        {
+          Robot.step();
+          Robot.update();
+          Display.update();
+          globals.step = false;
+          globals.update = false;
+        }
+        if(globals.update == true)
+        {
+          Robot.update();
+          Display.update();
+          globals.update = false;
+        }
+      }
+
+      function onResize(event)
+      {
+        Field.resize();
+        Robot.resize();
+      }
+
+      function onKeyUp(event)
+      {
+        if(event.key === "space")
+        {
+          var button = $("#play i");
+
+          if(button.hasClass("fa-pause"))
+          {
+            button.removeClass("fa-pause");
+            button.addClass("fa-play");
+          }
+          else
+          {
+            button.removeClass("fa-play");
+            button.addClass("fa-pause");
+          }
+
+          globals.run = !globals.run;
+        }
+
+        if(event.key === "r")
+        {
+          var button = $("#play i");
+
+          if(button.hasClass("fa-pause"))
+          {
+            button.removeClass("fa-pause");
+            button.addClass("fa-play");
+          }
+
+          globals.run = false;
+          globals.reset = true;
+        }
+
+        if(event.key === "s")
+        {
+          globals.step = true;
+        }
+
+        if(event.key === "!")
+        {
+          var button = $("#play i");
+
+          if(button.hasClass("fa-pause"))
+          {
+            button.removeClass("fa-pause");
+            button.addClass("fa-play");
+          }
+
+          globals.run = false;
+          globals.random = true;
+        }
+      }
+    </script>
+    <script type="text/javascript">
+      window.globals =
+      {
+        mode: 0,
+        sensor: 0,
+        power: 30,
+        steer: 0,
+        max_steer: 200,
+        heading: 0,
+        kp: 0,
+        update: false,
+        run: false,
+        step: false,
+        reset: true,
+        random: false
+      };
+
+      function modeChange()
+      {
+        var button = $("#play i");
+
+        if(button.hasClass("fa-pause"))
+        {
+          button.removeClass("fa-pause");
+          button.addClass("fa-play");
+        }
+
+        globals.run = false;
+        globals.step = false;
+        globals.reset = true;
+      }
+
+      function modeOpen()
+      {
+        var title = "Open Loop";
+
+        $("title").text(title);
+        $(".header > p").text(title);
+
+        $(".footer > p").text("Open loop mode does not use any sensors.");
+
+        $(".showLine2").hide();
+        $(".showLine3").hide();
+        $(".showLine").hide();
+        $(".showGyro").hide();
+        $(".showOpen").show();
+        globals.mode = "open";
+        modeChange();
+      }
+
+      function modeLine2()
+      {
+        var title = "Line Following (2-stage)";
+
+        $("title").text(title);
+        $(".header > p").text(title);
+
+        $(".footer > p").text("A 2-stage line follower pivots left or right " +
+                              "based on the light sensor.");
+
+        $(".showOpen").hide();
+        $(".showLine3").hide();
+        $(".showLine").hide();
+        $(".showGyro").hide();
+        $(".showLine2").show();
+        globals.mode = "line2";
+        modeChange();
+      }
+
+      function modeLine3()
+      {
+        var title = "Line Following (3-stage)";
+
+        $("title").text(title);
+        $(".header > p").text(title);
+
+        $(".footer > p").text("A 3-stage line follower pivots left, drives " +
+                              "straight, or pivots right based on the light " +
+                              "sensor.");
+
+        $(".showOpen").hide();
+        $(".showLine2").hide();
+        $(".showLine").hide();
+        $(".showGyro").hide();
+        $(".showLine3").show();
+        globals.mode = "line3";
+        modeChange();
+      }
+
+      function modeLine()
+      {
+        var title = "Line Following (Proportional)";
+
+        $("title").text(title);
+        $(".header > p").text(title);
+
+        $(".footer > p").text("A proportional line follower steers back to " +
+                              "the edge of the line at a rate corresponding " +
+                              "to the amount of error.");
+
+        $(".showOpen").hide();
+        $(".showLine2").hide();
+        $(".showLine3").hide();
+        $(".showGyro").hide();
+        $(".showLine").show();
+        globals.mode = "line";
+        modeChange();
+      }
+
+      function modeGyro()
+      {
+        var title = "Gyro Driving";
+
+        $("title").text(title);
+        $(".header > p").text(title);
+
+        $(".footer > ").text("Gyro driving 'follows' an imaginary line by " +
+                             "maintaining a given heading.");
+
+        $(".showOpen").hide();
+        $(".showLine2").hide();
+        $(".showLine3").hide();
+        $(".showLine").hide();
+        $(".showGyro").show();
+        globals.mode = "gyro";
+        modeChange();
+      }
+
+      function changeMode(evt)
+      {
+        var select = $(evt.target);
+        switch(select.val())
+        {
+          case "open":
+          default:
+          {
+            modeOpen();
+            break;
+          }
+
+          case "line2":
+          {
+            modeLine2();
+            break;
+          }
+
+          case "line3":
+          {
+            modeLine3();
+            break;
+          }
+
+          case "line":
+          {
+            modeLine();
+            break;
+          }
+
+          case "gyro":
+          {
+            modeGyro();
+            break;
+          }
+        }
+      }
+
+      function switchSensor(evt)
+      {
+        var button = $(evt.target);
+        if(button.is("button"))
+        {
+          button = button.children().first();
+        }
+        if(button.hasClass("fa-arrow-left"))
+        {
+          button.removeClass("fa-arrow-left");
+          button.addClass("fa-arrow-right");
+          window.globals.sensor = 1;
+        }
+        else
+        {
+          button.removeClass("fa-arrow-right");
+          button.addClass("fa-arrow-left");
+          window.globals.sensor = 0;
+        }
+        window.globals.update = true;
+      }
+
+      function updatePower(evt)
+      {
+        var input = $(evt.target);
+        var power = parseFloat(input[0].value);
+        if(power > 100)
+        {
+          input[0].value = 100;
+          power = 100;
+        }
+        if(power < -100)
+        {
+          input[0].value = -100;
+          power = -100;
+        }
+        window.globals.power = power;
+        window.globals.update = true;
+      }
+
+      function updateSteer(evt)
+      {
+        var input = $(evt.target);
+        var steer = parseFloat(input[0].value);
+        if(steer > globals.max_steer)
+        {
+          input[0].value = globals.max_steer;
+          steer = globals.max_steer;
+        }
+        if(steer < -globals.max_steer)
+        {
+          input[0].value = -globals.max_steer;
+          steer = -globals.max_steer;
+        }
+        window.globals.steer = steer;
+        window.globals.update = true;
+      }
+
+      function updateHeading(evt)
+      {
+        var input = $(evt.target);
+        var heading = parseFloat(input[0].value);
+        window.globals.heading = heading;
+        window.globals.update = true;
+      }
+
+      function updateKp(evt)
+      {
+        var input = $(evt.target);
+        if(input[0].value !== "")
+        {
+          window.globals.kp = parseFloat(input[0].value);
+          window.globals.update = true;
+        }
+      }
+
+      function pressPlayPause(evt)
+      {
+        var button = $(evt.target);
+        if(button.is("button"))
+        {
+          button = button.children().first();
+        }
+        if(button.hasClass("fa-play"))
+        {
+          button.removeClass("fa-play");
+          button.addClass("fa-pause");
+          window.globals.run = true;
+        }
+        else
+        {
+          button.removeClass("fa-pause");
+          button.addClass("fa-play");
+          window.globals.run = false;
+        }
+      }
+
+      function pressStep(evt)
+      {
+        window.globals.step = true;
+      }
+
+      function pressReset(evt)
+      {
+        var button = $("#play i");
+
+        if(button.hasClass("fa-pause"))
+        {
+          button.removeClass("fa-pause");
+          button.addClass("fa-play");
+        }
+
+        window.globals.run = false;
+        window.globals.reset = true;
+      }
+
+      function pressRandom(evt)
+      {
+        var button = $("#play i");
+
+        if(button.hasClass("fa-pause"))
+        {
+          button.removeClass("fa-pause");
+          button.addClass("fa-play");
+        }
+
+        window.globals.run = false;
+        window.globals.random = true;
+      }
+
+      function load()
+      {
+        modeOpen();
+        $(".full-screen").css("display", "flex");
+        window.dispatchEvent(new Event('resize'));
+      }
+
+      window.onload = load;
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style type="text/css">
+      html, body, .full-screen
+      {
+        height: 100%;
+      }
+
+      body
+      {
+        margin: 0;
+        background: white;
+        font-family: Helvetica, Arial;
+      }
+
+      .full-screen
+      {
+        display: none;
+        overflow: hidden;
+        flex-direction: column;
+      }
+
+      .full-screen > .header
+      {
+        flex: none;
+        overflow: scroll;
+        color: white;
+        background-color: #4285f4;
+        font-weight: bold;
+        font-size: larger;
+        text-align: center;
+        text-shadow: 1px 1px black;
+      }
+
+      .full-screen > .footer
+      {
+        flex: none;
+        overflow: scroll;
+        color: white;
+        background-color: #4285f4;
+        padding-left: 1em;
+        padding-right: 1em;
+      }
+
+      .full-screen > .main
+      {
+        flex: auto;
+        display: flex;
+        overflow: hidden;
+        flex-direction: row;
+      }
+
+      .full-screen > .main > .left
+      {
+        flex: none;
+        overflow: scroll;
+        width: 20%;
+        background: white;
+        border-right: 1px solid black;
+        padding: 5px;
+      }
+
+      .full-screen > .main > .middle
+      {
+        flex: auto;
+      }
+
+      .full-screen > .main > .right
+      {
+        flex: none;
+        overflow: scroll;
+        width: 20%;
+        background: white;
+        border-left: 1px solid black;
+        padding: 5px;
+      }
+
+      h1
+      {
+        font-size: 1.5em;
+        font-weight: bold;
+        margin-block-start: 0em;
+        margin-block-end: 0.75em;
+      }
+
+      hr
+      {
+        margin-block-start: 1em;
+        margin-block-end: 1em;
+      }
+
+      #sensor_left
+      {
+        display: inline-block;
+        text-align: center;
+        width: 2em;
+      }
+
+      #sensor_left_color
+      {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 1px solid black;
+        background-color: white;
+        vertical-align: middle;
+      }
+
+      #sensor_right
+      {
+        display: inline-block;
+        text-align: center;
+        width: 2em;
+      }
+
+      #sensor_right_color
+      {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 1px solid black;
+        background-color: white;
+        vertical-align: middle;
+      }
+
+      #sensor_gyro
+      {
+        display: inline-block;
+        text-align: center;
+        width: 2em;
+      }
+
+      #error
+      {
+        display: inline-block;
+        text-align: center;
+        width: 2em;
+      }
+
+      #steerOut
+      {
+        display: inline-block;
+        text-align: center;
+        width: 2em;
+      }
+
+      #angleGraph
+      {
+        width: 100%;
+        height: 18vh;
+      }
+
+      #errorGraph
+      {
+        width: 100%;
+        height: 18vh;
+      }
+
+      #steerGraph
+      {
+        width: 100%;
+        height: 18vh;
+      }
+
+      .control
+      {
+        width: 46px;
+        height: 36px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="full-screen">
+      <div class="header">
+        <p>
+          &nbsp;
+        </p>
+      </div>
+      <div class="main">
+        <div class="left">
+          <center>
+            <h1>
+              Mode
+            </h1>
+            <label for="mode">Mode:</label>
+            <select id="mode" onchange="changeMode(event);">
+              <option value="open">Open Loop</option>
+              <option value="line2">Line Following (2-stage)</option>
+              <option value="line3">Line Following (3-stage)</option>
+              <option value="line">Line Following (Proportional)</option>
+              <option value="gyro">Gyro Driving</option>
+            </select>
+            <hr>
+            <h1>
+              Inputs
+            </h1>
+            <table>
+              <tr class="showLine showLine2 showLine3">
+                <td>
+                  Sensor:
+                </td>
+                <td>
+                  <button onclick="switchSensor(event);">
+                    <i class="fa fa-arrow-left fa-2x"></i>
+                  </button>
+                </td>
+              </tr>
+              <tr class="showLine showLine2 showLine3">
+                <td colspan=2>
+                  <small>
+                    <em>
+                      Which sensor the robot uses to follow the line.
+                    </em>
+                  </small>
+                </td>
+              </tr>
+              <tr class="showLine showLine2 showLine3">
+                <td>
+                  &nbsp;
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Power:
+                </td>
+                <td>
+                  <input id="power" type="text" pattern="[0-9]*" size="8"
+                         value="30" onchange="updatePower(event);" />
+                </td>
+              </tr>
+              <tr>
+                <td colspan=2>
+                  <small>
+                    <em>
+                      How fast the robot moves.
+                    </em>
+                  </small>
+                </td>
+              </tr>
+              <tr class="showOpen">
+                <td>
+                  &nbsp;
+                </td>
+              </tr>
+              <tr class="showOpen">
+                <td>
+                  Steering:
+                </td>
+                <td>
+                  <input id="steerIn" type="text" pattern="[0-9]*" size="8"
+                         value="0" onchange="updateSteer(event);" />
+                </td>
+              </tr>
+              <tr class="showOpen">
+                <td colspan=2>
+                  <small>
+                    <em>
+                      The direction the robot moves.
+                    </em>
+                  </small>
+                </td>
+              </tr>
+              <tr class="showGyro">
+                <td>
+                  &nbsp;
+                </td>
+              </tr>
+              <tr class="showGyro">
+                <td>
+                  Heading:
+                </td>
+                <td>
+                  <input id="heading" type="text" pattern="[0-9.]*" size="8"
+                         value="0" onchange="updateHeading(event);" />
+                </td>
+              </tr>
+              <tr class="showGyro">
+                <td colspan=2>
+                  <small>
+                    <em>
+                      The direction the robot travels.
+                    </em>
+                  </small>
+                </td>
+              </tr>
+              <tr class="showLine showGyro">
+                <td>
+                  &nbsp;
+                </td>
+              </tr>
+              <tr class="showLine showGyro">
+                <td>
+                  Kp:
+                </td>
+                <td>
+                  <input id="kp" type="text" pattern="[0-9.]*" size="8"
+                         value="0" onchange="updateKp(event);" />
+                </td>
+              </tr>
+              <tr class="showLine showGyro">
+                <td colspan=2>
+                  <small>
+                    <em>
+                      How quickly the robot responds to error.
+                    </em>
+                  </small>
+                </td>
+              </tr>
+            </table>
+            <hr>
+            <h1 class="showLine showLine2 showLine3 showGyro">
+              What the robot sees
+            </h1>
+            <table class="showLine showLine2 showLine3 showGyro">
+              <tr class="showLine showLine2 showLine3">
+                <td>
+                  Left sensor:
+                </td>
+                <td>
+                  <span id="sensor_left">0</span>
+                  <span id="sensor_left_color"></span>
+                </td>
+              </tr>
+              <tr class="showLine showLine2 showLine3">
+                <td>
+                  Right sensor:
+                </td>
+                <td>
+                  <span id="sensor_right">0</span>
+                  <span id="sensor_right_color"></span>
+                </td>
+              </tr>
+              <tr class="showGyro">
+                <td>
+                  Gyro sensor:
+                </td>
+                <td>
+                  <span id="sensor_gyro">0</span>
+                </td>
+              </tr>
+            </table>
+            <hr class="showLine showLine2 showLine3 showGyro">
+            <h1 class="showLine showLine2 showLine3 showGyro">
+              What the robot decides
+            </h1>
+            <table class="showLine showLine2 showLine3 showGyro">
+              <tr class="showLine showGyro">
+                <td>
+                  Error:
+                </td>
+                <td>
+                  <span id="error">0</span>
+                </td>
+              </tr>
+              <tr>
+                <td colspan=2>
+                  <small>
+                    <em class="showLine">
+                      error = reading - 50
+                    </em>
+                    <em class="showGyro">
+                      error = reading
+                    </em>
+                  </small>
+                </td>
+              </tr>
+              <tr class="showLine showGyro">
+                <td>
+                  &nbsp;
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  Steering:
+                </td>
+                <td>
+                  <span id="steerOut">0</span>
+                </td>
+              </tr>
+              <tr class="showLine showGyro">
+                <td colspan=2>
+                  <small>
+                    <em>
+                      steering = error * Kp
+                    </em>
+                  </small>
+                </td>
+              </tr>
+            </table>
+            <hr class="showLine showLine2 showLine3 showGyro">
+            <h1>
+              Controls
+            </h1>
+            <p>
+              <center>
+                <button id="play" class="control"
+                        onclick="pressPlayPause(event);">
+                  <i class="fa fa-play fa-2x"></i>
+                </button>
+                <button class="control showLine showLine2 showLine3 showGyro"
+                        onclick="pressStep(event);">
+                  <i class="fa fa-step-forward fa-2x"></i>
+                </button>
+                <button class="control" onclick="pressReset(event);">
+                  <i class="fa fa-refresh fa-2x"></i>
+                </button>
+                <button class="control showLine showLine2 showLine3 showGyro"
+                        onclick="pressRandom(event);">
+                  <i class="fa fa-random fa-2x"></i>
+                </button>
+              </center>
+            </p>
+          </center>
+        </div>
+        <canvas id="canvas" class="middle" resize></canvas>
+        <div class="right">
+          <center>
+            <h2>
+              Angle
+            </h2>
+            <canvas id="angleGraph" resize></canvas>
+            <h2>
+              Error
+            </h2>
+            <canvas id="errorGraph" resize></canvas>
+            <h2>
+              Steering
+            </h2>
+            <canvas id="steerGraph" resize></canvas>
+          </center>
+        </div>
+      </div>
+      <div class="footer">
+        <p>
+          Hi there!
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

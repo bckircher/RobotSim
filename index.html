@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 -->
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1,
@@ -28,8 +28,16 @@ SOFTWARE.
     <title>
       Open Loop
     </title>
-    <script src="extern/jquery-3.5.0.min.js"></script>
-    <script type="text/javascript" src="extern/paper-full.min.js"></script>
+    <link rel="shortcut icon" type="image/png" href="images/sim.png"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.css"
+          integrity="sha512-5A8nwdMOWrSz20fDsjczgUidUBR8liPYU+WymTZP1lmY9G6Oc7HlZv156XqnsgNUzTyMefFTcsFH/tnJE/+xBg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+            integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.18/paper-full.min.js"
+            integrity="sha512-qaPSGmKTwpu5ChwJ6AD3w7ecS3yM7pFC1cS3IfnjPM67dhXoymEomk1wqiZEHUFO4dQO1bhjo8LYImVDSDfR1g=="
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script type="text/paperscript" canvas="canvas">
       var assets =
       {
@@ -142,7 +150,7 @@ SOFTWARE.
           grid: grid,
           path: path,
 
-          reset : function()
+          reset: function()
           {
             var viewBounds = view.bounds;
             var itemBounds = this.path.bounds;
@@ -275,6 +283,13 @@ SOFTWARE.
 
           update: function()
           {
+            this.count++;
+            if(this.count <= 5)
+            {
+              return;
+            }
+            this.count = 0;
+
             var value = this.sensor;
 
             if(globals.mode === "line")
@@ -284,38 +299,28 @@ SOFTWARE.
             }
             else if(globals.mode === "line2")
             {
-              this.count++;
-              if(this.count > 5)
+              if(value < 50)
               {
-                if(value < 50)
-                {
-                  this.steer = -globals.max_steer / 2;
-                }
-                else
-                {
-                  this.steer = globals.max_steer / 2;
-                }
-                this.count = 0;
+                this.steer = -globals.max_steer / 2;
+              }
+              else
+              {
+                this.steer = globals.max_steer / 2;
               }
             }
             else if(globals.mode === "line3")
             {
-              this.count++;
-              if(this.count > 5)
+              if((value >= 40) && (value <= 60))
               {
-                if((value >= 40) && (value <= 60))
-                {
-                  this.steer = 0;
-                }
-                else if(value < 50)
-                {
-                  this.steer = -globals.max_steer / 2;
-                }
-                else
-                {
-                  this.steer = globals.max_steer / 2;
-                }
-                this.count = 0;
+                this.steer = 0;
+              }
+              else if(value < 50)
+              {
+                this.steer = -globals.max_steer / 2;
+              }
+              else
+              {
+                this.steer = globals.max_steer / 2;
               }
             }
             else if(globals.mode === "gyro")
@@ -483,17 +488,8 @@ SOFTWARE.
       var Graph = new function()
       {
         var angleGraph = (new Project("angleGraph")).activeLayer;
-        var c = angleGraph.addChild(new Path.Circle(0, 0, 79));
-        c.strokeColor = "black";
-        c.fillColor = "black";
         var errorGraph = (new Project("errorGraph")).activeLayer;
-        c = errorGraph.addChild(new Path.Circle(80, 0, 79));
-        c.strokeColor = "red";
-        c.fillColor = "red";
         var steerGraph = (new Project("steerGraph")).activeLayer;
-        c = steerGraph.addChild(new Path.Circle(00, 40, 39));
-        c.strokeColor = "green";
-        c.fillColor = "green";
 
         return {
           angleGraph: angleGraph,
@@ -615,6 +611,11 @@ SOFTWARE.
             this.steerGraph.addChild(p);
           },
 
+          resize: function()
+          {
+            globals.redraw = true;
+          },
+
           reset: function()
           {
             this.angle = [];
@@ -673,6 +674,7 @@ SOFTWARE.
           globals.run = false;
           globals.reset = false;
           globals.random = false;
+          globals.nudge = false;
           globals.update = false;
         }
         if(globals.random == true)
@@ -702,6 +704,19 @@ SOFTWARE.
           globals.random = false;
           globals.update = false;
         }
+        if(globals.nudge == true)
+        {
+          if((globals.mode === "line") || (globals.mode === "line2") ||
+             (globals.mode === "line3"))
+          {
+            Robot.rotate(15 - (30 * Math.random()));
+          }
+          else
+          {
+            Robot.rotate(30 - (60 * Math.random()));
+          }
+          globals.nudge = false;
+        }
         if((globals.run == true) || (globals.step == true))
         {
           Robot.step();
@@ -716,12 +731,20 @@ SOFTWARE.
           Display.update();
           globals.update = false;
         }
+        if(globals.redraw == true)
+        {
+          Graph.drawAngle();
+          Graph.drawError();
+          Graph.drawSteer();
+          globals.redraw = false;
+        }
       }
 
       function onResize(event)
       {
         Field.resize();
         Robot.resize();
+        Graph.resize();
       }
 
       function onKeyUp(event)
@@ -776,6 +799,11 @@ SOFTWARE.
           globals.run = false;
           globals.random = true;
         }
+
+        if(event.key === "escape")
+        {
+          closeHelp();
+        }
       }
     </script>
     <script type="text/javascript">
@@ -785,17 +813,19 @@ SOFTWARE.
         sensor: 0,
         power: 30,
         steer: 0,
-        max_steer: 200,
+        max_steer: 100,
         heading: 0,
         kp: 0,
         update: false,
+        redraw: false,
         run: false,
         step: false,
         reset: true,
         random: false
       };
 
-      function modeChange()
+      function
+      modeChange()
       {
         var button = $("#play i");
 
@@ -810,7 +840,8 @@ SOFTWARE.
         globals.reset = true;
       }
 
-      function modeOpen()
+      function
+      modeOpen()
       {
         var title = "Open Loop";
 
@@ -828,7 +859,8 @@ SOFTWARE.
         modeChange();
       }
 
-      function modeLine2()
+      function
+      modeLine2()
       {
         var title = "Line Following (2-stage)";
 
@@ -847,7 +879,8 @@ SOFTWARE.
         modeChange();
       }
 
-      function modeLine3()
+      function
+      modeLine3()
       {
         var title = "Line Following (3-stage)";
 
@@ -867,7 +900,8 @@ SOFTWARE.
         modeChange();
       }
 
-      function modeLine()
+      function
+      modeLine()
       {
         var title = "Line Following (Proportional)";
 
@@ -887,15 +921,16 @@ SOFTWARE.
         modeChange();
       }
 
-      function modeGyro()
+      function
+      modeGyro()
       {
         var title = "Gyro Driving";
 
         $("title").text(title);
         $(".header > p").text(title);
 
-        $(".footer > ").text("Gyro driving 'follows' an imaginary line by " +
-                             "maintaining a given heading.");
+        $(".footer > p").text("Gyro driving 'follows' an imaginary line by " +
+                              "maintaining a given heading.");
 
         $(".showOpen").hide();
         $(".showLine2").hide();
@@ -906,7 +941,8 @@ SOFTWARE.
         modeChange();
       }
 
-      function changeMode(evt)
+      function
+      changeMode(evt)
       {
         var select = $(evt.target);
         switch(select.val())
@@ -944,7 +980,8 @@ SOFTWARE.
         }
       }
 
-      function switchSensor(evt)
+      function
+      switchSensor(evt)
       {
         var button = $(evt.target);
         if(button.is("button"))
@@ -966,10 +1003,15 @@ SOFTWARE.
         window.globals.update = true;
       }
 
-      function updatePower(evt)
+      function
+      updatePower(evt)
       {
         var input = $(evt.target);
         var power = parseFloat(input[0].value);
+        if(isNaN(power))
+        {
+          power = 0;
+        }
         if(power > 100)
         {
           input[0].value = 100;
@@ -984,10 +1026,15 @@ SOFTWARE.
         window.globals.update = true;
       }
 
-      function updateSteer(evt)
+      function
+      updateSteer(evt)
       {
         var input = $(evt.target);
         var steer = parseFloat(input[0].value);
+        if(isNaN(steer))
+        {
+          steer = 0;
+        }
         if(steer > globals.max_steer)
         {
           input[0].value = globals.max_steer;
@@ -1002,25 +1049,36 @@ SOFTWARE.
         window.globals.update = true;
       }
 
-      function updateHeading(evt)
+      function
+      updateHeading(evt)
       {
         var input = $(evt.target);
         var heading = parseFloat(input[0].value);
+        if(isNaN(heading))
+        {
+          heading = 0;
+        }
         window.globals.heading = heading;
         window.globals.update = true;
       }
 
-      function updateKp(evt)
+      function
+      updateKp(evt)
       {
         var input = $(evt.target);
         if(input[0].value !== "")
         {
           window.globals.kp = parseFloat(input[0].value);
+          if(isNaN(window.globals.kp))
+          {
+            window.globals.kp = 0;
+          }
           window.globals.update = true;
         }
       }
 
-      function pressPlayPause(evt)
+      function
+      pressPlayPause(evt)
       {
         var button = $(evt.target);
         if(button.is("button"))
@@ -1041,12 +1099,14 @@ SOFTWARE.
         }
       }
 
-      function pressStep(evt)
+      function
+      pressStep(evt)
       {
         window.globals.step = true;
       }
 
-      function pressReset(evt)
+      function
+      pressReset(evt)
       {
         var button = $("#play i");
 
@@ -1060,7 +1120,8 @@ SOFTWARE.
         window.globals.reset = true;
       }
 
-      function pressRandom(evt)
+      function
+      pressRandom(evt)
       {
         var button = $("#play i");
 
@@ -1074,103 +1135,234 @@ SOFTWARE.
         window.globals.random = true;
       }
 
-      function load()
+      function
+      pressNudge(evt)
+      {
+        window.globals.nudge = true;
+      }
+
+      function
+      help()
+      {
+        var button = $("#play i");
+
+        if(button.hasClass("fa-pause"))
+        {
+          button.removeClass("fa-pause");
+          button.addClass("fa-play");
+        }
+
+        globals.run = false;
+
+        if(globals.mode == "open")
+        {
+          $("#help_open").show();
+        }
+        else if(globals.mode == "line2")
+        {
+          $("#help_2stage").show();
+        }
+        else if(globals.mode == "line3")
+        {
+          $("#help_3stage").show();
+        }
+        else if(globals.mode == "line")
+        {
+          $("#help_proportional").show();
+        }
+        else if(globals.mode == "gyro")
+        {
+          $("#help_gyro").show();
+        }
+      }
+
+      function
+      closeHelp()
+      {
+        $(".overlay").hide();
+      }
+
+      function
+      load()
       {
         modeOpen();
         $(".full-screen").css("display", "flex");
         window.dispatchEvent(new Event('resize'));
       }
 
-      window.onload = load;
+      function
+      toggleFullscreen(e)
+      {
+        if(((e.key == 'f') || (e.key == 'F')) && (e.ctrlKey == true))
+        {
+          if(!document.fullscreenElement)
+          {
+            document.documentElement.requestFullscreen();
+          }
+          else
+          {
+            document.exitFullscreen();
+          }
+
+          e.stopPropagation();
+        }
+      }
+
+      $(window).on("load", load);
+      $(window).on("keydown", toggleFullscreen);
     </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <style type="text/css">
       html, body, .full-screen
       {
         height: 100%;
+        width: 100%;
       }
 
       body
       {
-        margin: 0;
         background: white;
         font-family: Helvetica, Arial;
+        margin: 0;
       }
 
       .full-screen
       {
         display: none;
-        overflow: hidden;
         flex-direction: column;
+        overflow: hidden;
       }
 
       .full-screen > .header
       {
-        flex: none;
-        overflow: scroll;
-        color: white;
         background-color: #4285f4;
-        font-weight: bold;
+        color: white;
+        flex: none;
         font-size: larger;
+        font-weight: bold;
+        overflow: scroll;
         text-align: center;
         text-shadow: 1px 1px black;
       }
 
       .full-screen > .footer
       {
+        background-color: #4285f4;
+        color: white;
         flex: none;
         overflow: scroll;
-        color: white;
-        background-color: #4285f4;
         padding-left: 1em;
         padding-right: 1em;
       }
 
       .full-screen > .main
       {
-        flex: auto;
         display: flex;
-        overflow: hidden;
+        flex: auto;
         flex-direction: row;
+        overflow: hidden;
       }
 
       .full-screen > .main > .left
       {
-        flex: none;
-        overflow: scroll;
-        width: 20%;
         background: white;
         border-right: 1px solid black;
+        flex: none;
+        overflow: scroll;
         padding: 5px;
+        width: 20%;
       }
 
       .full-screen > .main > .middle
       {
         flex: auto;
+        width: 1%;
       }
 
       .full-screen > .main > .right
       {
-        flex: none;
-        overflow: scroll;
-        width: 20%;
         background: white;
         border-left: 1px solid black;
+        flex: none;
+        overflow: scroll;
         padding: 5px;
+        width: 20%;
+      }
+
+      .center
+      {
+        text-align: center;
+      }
+
+      .hidden
+      {
+        display: none;
+      }
+
+      .overlay
+      {
+        height: 100%;
+        left: 0;
+        position: fixed;
+        top: 0;
+        width: 100%;
+      }
+
+      .shadow
+      {
+        background-color: #000;
+        height: 100%;
+        left: 0;
+        opacity: 25%;
+        position: fixed;
+        top: 0;
+        width: 100%;
+        z-index: 100;
+      }
+
+      .insert
+      {
+        background-color: #fff;
+        border-radius: 20px;
+        height: calc(100vh - 10vw);
+        left: calc(5vw - 20px);
+        overflow-y: scroll;
+        padding: 20px 20px;
+        position: fixed;
+        top: calc(5vw - 20px);
+        width: 90vw;
+        z-index: 101;
+      }
+
+      .insert > div
+      {
+        height: calc(100vh - 10vw);
+        overflow-y: scroll;
+      }
+
+      .help
+      {
+        background-color: #4285f4;
+        border-color: #fff;
+        border-radius: 5px;
+        border-width: 2px;
+        color: #fff;
+        float: right;
+        margin: 10px 0px;
+        padding: 5px 20px;
       }
 
       h1
       {
         font-size: 1.5em;
         font-weight: bold;
-        margin-block-start: 0em;
         margin-block-end: 0.75em;
+        margin-block-start: 0em;
       }
 
       hr
       {
-        margin-block-start: 1em;
         margin-block-end: 1em;
+        margin-block-start: 1em;
       }
 
       #sensor_left
@@ -1182,12 +1374,12 @@ SOFTWARE.
 
       #sensor_left_color
       {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 1px solid black;
         background-color: white;
+        border: 1px solid black;
+        display: inline-block;
+        height: 20px;
         vertical-align: middle;
+        width: 20px;
       }
 
       #sensor_right
@@ -1199,12 +1391,12 @@ SOFTWARE.
 
       #sensor_right_color
       {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 1px solid black;
         background-color: white;
+        border: 1px solid black;
+        display: inline-block;
+        height: 20px;
         vertical-align: middle;
+        width: 20px;
       }
 
       #sensor_gyro
@@ -1230,26 +1422,26 @@ SOFTWARE.
 
       #angleGraph
       {
-        width: 100%;
         height: 18vh;
+        width: 100%;
       }
 
       #errorGraph
       {
-        width: 100%;
         height: 18vh;
+        width: 100%;
       }
 
       #steerGraph
       {
-        width: 100%;
         height: 18vh;
+        width: 100%;
       }
 
       .control
       {
-        width: 46px;
         height: 36px;
+        width: 46px;
       }
     </style>
   </head>
@@ -1261,262 +1453,473 @@ SOFTWARE.
         </p>
       </div>
       <div class="main">
-        <div class="left">
-          <center>
-            <h1>
-              Mode
-            </h1>
-            <label for="mode">Mode:</label>
-            <select id="mode" onchange="changeMode(event);">
-              <option value="open">Open Loop</option>
-              <option value="line2">Line Following (2-stage)</option>
-              <option value="line3">Line Following (3-stage)</option>
-              <option value="line">Line Following (Proportional)</option>
-              <option value="gyro">Gyro Driving</option>
-            </select>
-            <hr>
-            <h1>
-              Inputs
-            </h1>
-            <table>
-              <tr class="showLine showLine2 showLine3">
-                <td>
-                  Sensor:
-                </td>
-                <td>
-                  <button onclick="switchSensor(event);">
-                    <i class="fa fa-arrow-left fa-2x"></i>
-                  </button>
-                </td>
-              </tr>
-              <tr class="showLine showLine2 showLine3">
-                <td colspan=2>
-                  <small>
-                    <em>
-                      Which sensor the robot uses to follow the line.
-                    </em>
-                  </small>
-                </td>
-              </tr>
-              <tr class="showLine showLine2 showLine3">
-                <td>
-                  &nbsp;
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  Power:
-                </td>
-                <td>
-                  <input id="power" type="text" pattern="[0-9]*" size="8"
-                         value="30" onchange="updatePower(event);" />
-                </td>
-              </tr>
-              <tr>
-                <td colspan=2>
-                  <small>
-                    <em>
-                      How fast the robot moves.
-                    </em>
-                  </small>
-                </td>
-              </tr>
-              <tr class="showOpen">
-                <td>
-                  &nbsp;
-                </td>
-              </tr>
-              <tr class="showOpen">
-                <td>
-                  Steering:
-                </td>
-                <td>
-                  <input id="steerIn" type="text" pattern="[0-9]*" size="8"
-                         value="0" onchange="updateSteer(event);" />
-                </td>
-              </tr>
-              <tr class="showOpen">
-                <td colspan=2>
-                  <small>
-                    <em>
-                      The direction the robot moves.
-                    </em>
-                  </small>
-                </td>
-              </tr>
-              <tr class="showGyro">
-                <td>
-                  &nbsp;
-                </td>
-              </tr>
-              <tr class="showGyro">
-                <td>
-                  Heading:
-                </td>
-                <td>
-                  <input id="heading" type="text" pattern="[0-9.]*" size="8"
-                         value="0" onchange="updateHeading(event);" />
-                </td>
-              </tr>
-              <tr class="showGyro">
-                <td colspan=2>
-                  <small>
-                    <em>
-                      The direction the robot travels.
-                    </em>
-                  </small>
-                </td>
-              </tr>
-              <tr class="showLine showGyro">
-                <td>
-                  &nbsp;
-                </td>
-              </tr>
-              <tr class="showLine showGyro">
-                <td>
-                  Kp:
-                </td>
-                <td>
-                  <input id="kp" type="text" pattern="[0-9.]*" size="8"
-                         value="0" onchange="updateKp(event);" />
-                </td>
-              </tr>
-              <tr class="showLine showGyro">
-                <td colspan=2>
-                  <small>
-                    <em>
-                      How quickly the robot responds to error.
-                    </em>
-                  </small>
-                </td>
-              </tr>
-            </table>
-            <hr>
-            <h1 class="showLine showLine2 showLine3 showGyro">
-              What the robot sees
-            </h1>
-            <table class="showLine showLine2 showLine3 showGyro">
-              <tr class="showLine showLine2 showLine3">
-                <td>
-                  Left sensor:
-                </td>
-                <td>
-                  <span id="sensor_left">0</span>
-                  <span id="sensor_left_color"></span>
-                </td>
-              </tr>
-              <tr class="showLine showLine2 showLine3">
-                <td>
-                  Right sensor:
-                </td>
-                <td>
-                  <span id="sensor_right">0</span>
-                  <span id="sensor_right_color"></span>
-                </td>
-              </tr>
-              <tr class="showGyro">
-                <td>
-                  Gyro sensor:
-                </td>
-                <td>
-                  <span id="sensor_gyro">0</span>
-                </td>
-              </tr>
-            </table>
-            <hr class="showLine showLine2 showLine3 showGyro">
-            <h1 class="showLine showLine2 showLine3 showGyro">
-              What the robot decides
-            </h1>
-            <table class="showLine showLine2 showLine3 showGyro">
-              <tr class="showLine showGyro">
-                <td>
-                  Error:
-                </td>
-                <td>
-                  <span id="error">0</span>
-                </td>
-              </tr>
-              <tr>
-                <td colspan=2>
-                  <small>
-                    <em class="showLine">
-                      error = reading - 50
-                    </em>
-                    <em class="showGyro">
-                      error = reading
-                    </em>
-                  </small>
-                </td>
-              </tr>
-              <tr class="showLine showGyro">
-                <td>
-                  &nbsp;
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  Steering:
-                </td>
-                <td>
-                  <span id="steerOut">0</span>
-                </td>
-              </tr>
-              <tr class="showLine showGyro">
-                <td colspan=2>
-                  <small>
-                    <em>
-                      steering = error * Kp
-                    </em>
-                  </small>
-                </td>
-              </tr>
-            </table>
-            <hr class="showLine showLine2 showLine3 showGyro">
-            <h1>
-              Controls
-            </h1>
-            <p>
-              <center>
-                <button id="play" class="control"
-                        onclick="pressPlayPause(event);">
-                  <i class="fa fa-play fa-2x"></i>
+        <div class="left center">
+          <h1>
+            Mode
+          </h1>
+          <label for="mode">Mode:</label>
+          <select id="mode" onchange="changeMode(event);">
+            <option value="open">Open Loop</option>
+            <option value="line2">Line Following (2-stage)</option>
+            <option value="line3">Line Following (3-stage)</option>
+            <option value="line">Line Following (Proportional)</option>
+            <option value="gyro">Gyro Driving</option>
+          </select>
+          <hr>
+          <h1>
+            Inputs
+          </h1>
+          <table>
+            <tr class="showLine showLine2 showLine3">
+              <td>
+                Sensor:
+              </td>
+              <td>
+                <button onclick="switchSensor(event);">
+                  <i class="fa fa-arrow-left fa-2x"></i>
                 </button>
-                <button class="control showLine showLine2 showLine3 showGyro"
-                        onclick="pressStep(event);">
-                  <i class="fa fa-step-forward fa-2x"></i>
-                </button>
-                <button class="control" onclick="pressReset(event);">
-                  <i class="fa fa-refresh fa-2x"></i>
-                </button>
-                <button class="control showLine showLine2 showLine3 showGyro"
-                        onclick="pressRandom(event);">
-                  <i class="fa fa-random fa-2x"></i>
-                </button>
-              </center>
-            </p>
-          </center>
+              </td>
+            </tr>
+            <tr class="showLine showLine2 showLine3">
+              <td colspan=2>
+                <small>
+                  <em>
+                    Which sensor the robot uses to follow the line.
+                  </em>
+                </small>
+              </td>
+            </tr>
+            <tr class="showLine showLine2 showLine3">
+              <td>
+                &nbsp;
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Power:
+              </td>
+              <td>
+                <input id="power" type="text" pattern="[0-9]*" size="8"
+                       value="30" onchange="updatePower(event);" />
+              </td>
+            </tr>
+            <tr>
+              <td colspan=2>
+                <small>
+                  <em>
+                    How fast the robot moves.
+                  </em>
+                </small>
+              </td>
+            </tr>
+            <tr class="showOpen">
+              <td>
+                &nbsp;
+              </td>
+            </tr>
+            <tr class="showOpen">
+              <td>
+                Steering:
+              </td>
+              <td>
+                <input id="steerIn" type="text" pattern="[0-9]*" size="8"
+                       value="0" onchange="updateSteer(event);" />
+              </td>
+            </tr>
+            <tr class="showOpen">
+              <td colspan=2>
+                <small>
+                  <em>
+                    The direction the robot moves.
+                  </em>
+                </small>
+              </td>
+            </tr>
+            <tr class="showGyro">
+              <td>
+                &nbsp;
+              </td>
+            </tr>
+            <tr class="showGyro">
+              <td>
+                Heading:
+              </td>
+              <td>
+                <input id="heading" type="text" pattern="[0-9.]*" size="8"
+                       value="0" onchange="updateHeading(event);" />
+              </td>
+            </tr>
+            <tr class="showGyro">
+              <td colspan=2>
+                <small>
+                  <em>
+                    The direction the robot travels.
+                  </em>
+                </small>
+              </td>
+            </tr>
+            <tr class="showLine showGyro">
+              <td>
+                &nbsp;
+              </td>
+            </tr>
+            <tr class="showLine showGyro">
+              <td>
+                Kp:
+              </td>
+              <td>
+                <input id="kp" type="text" pattern="[0-9.]*" size="8"
+                       value="0" onchange="updateKp(event);" />
+              </td>
+            </tr>
+            <tr class="showLine showGyro">
+              <td colspan=2>
+                <small>
+                  <em>
+                    How quickly the robot responds to error.
+                  </em>
+                </small>
+              </td>
+            </tr>
+          </table>
+          <hr>
+          <h1 class="showLine showLine2 showLine3 showGyro">
+            What the robot sees
+          </h1>
+          <table class="showLine showLine2 showLine3 showGyro">
+            <tr class="showLine showLine2 showLine3">
+              <td>
+                Left sensor:
+              </td>
+              <td>
+                <span id="sensor_left">0</span>
+                <span id="sensor_left_color"></span>
+              </td>
+            </tr>
+            <tr class="showLine showLine2 showLine3">
+              <td>
+                Right sensor:
+              </td>
+              <td>
+                <span id="sensor_right">0</span>
+                <span id="sensor_right_color"></span>
+              </td>
+            </tr>
+            <tr class="showGyro">
+              <td>
+                Gyro sensor:
+              </td>
+              <td>
+                <span id="sensor_gyro">0</span>
+              </td>
+            </tr>
+          </table>
+          <hr class="showLine showLine2 showLine3 showGyro">
+          <h1 class="showLine showLine2 showLine3 showGyro">
+            What the robot decides
+          </h1>
+          <table class="showLine showLine2 showLine3 showGyro">
+            <tr class="showLine showGyro">
+              <td>
+                Error:
+              </td>
+              <td>
+                <span id="error">0</span>
+              </td>
+            </tr>
+            <tr>
+              <td colspan=2>
+                <small>
+                  <em class="showLine">
+                    error = reading - 50
+                  </em>
+                  <em class="showGyro">
+                    error = reading - heading
+                  </em>
+                </small>
+              </td>
+            </tr>
+            <tr class="showLine showGyro">
+              <td>
+                &nbsp;
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Steering:
+              </td>
+              <td>
+                <span id="steerOut">0</span>
+              </td>
+            </tr>
+            <tr class="showLine showGyro">
+              <td colspan=2>
+                <small>
+                  <em>
+                    steering = error * Kp
+                  </em>
+                </small>
+              </td>
+            </tr>
+          </table>
+          <hr class="showLine showLine2 showLine3 showGyro">
+          <h1>
+            Controls
+          </h1>
+          <p class="center">
+            <button id="play" class="control"
+                    onclick="pressPlayPause(event);">
+              <i class="fa fa-play fa-2x"></i>
+            </button>
+            <button class="control showLine showLine2 showLine3 showGyro"
+                    onclick="pressStep(event);">
+              <i class="fa fa-step-forward fa-2x"></i>
+            </button>
+            <button class="control" onclick="pressReset(event);">
+              <i class="fa fa-refresh fa-2x"></i>
+            </button>
+            <button class="control showLine showLine2 showLine3 showGyro"
+                    onclick="pressRandom(event);">
+              <i class="fa fa-random fa-2x"></i>
+            </button>
+            <button class="control" onclick="pressNudge(event)">
+              <i class="fa fa-superpowers fa-2x"></i>
+            </button>
+          </p>
         </div>
         <canvas id="canvas" class="middle" resize></canvas>
-        <div class="right">
-          <center>
-            <h2>
-              Angle
-            </h2>
-            <canvas id="angleGraph" resize></canvas>
-            <h2>
-              Error
-            </h2>
-            <canvas id="errorGraph" resize></canvas>
-            <h2>
-              Steering
-            </h2>
-            <canvas id="steerGraph" resize></canvas>
-          </center>
+        <div class="right center">
+          <h2>
+            Angle
+          </h2>
+          <canvas id="angleGraph" resize></canvas>
+          <h2>
+            Error
+          </h2>
+          <canvas id="errorGraph" resize></canvas>
+          <h2>
+            Steering
+          </h2>
+          <canvas id="steerGraph" resize></canvas>
         </div>
       </div>
       <div class="footer">
+        <button class="help" onclick="help();">Help</button>
+        <p></p>
+      </div>
+    </div>
+    <div id="help_open" class="overlay" style="display: none;">
+      <div class="shadow" onclick="closeHelp();"></div>
+      <div class="insert">
+        <div>
+        <h2>
+          Open Loop
+        </h2>
         <p>
-          Hi there!
+          In open loop mode, the robot simply drives forward. It does not
+          adjust its direction of travel based on any sensors and therefore
+          does not correct for any errors in its direction of travel. This is
+          used by many teams in FLL-C, and can be a very effective technique
+          when used for traveling short distances.
+        </p>
+        <p>
+          When running in this mode for any period of time, you may notice that
+          the robot drifts to the left or the right. On a real robot, the
+          diameter of the wheels won't be exactly the same, the speed of the
+          two motors won't be exactly the same, and so on. This results in the
+          drift that is simulated here. This demonstrates why it is
+          advantageous to use a more advanced driving method, especially over
+          longer distances.
+        </p>
+        <p>
+          In EV3 Classroom, this program looks like the following:
+        </p>
+        <img type="image/png" src="images/open_loop.png" />
+        <p>
+          Of course, the steering value might be different if the direction of
+          travel is something other than straight ahead.
+        </p>
+        </div>
+      </div>
+    </div>
+    <div id="help_2stage" class="overlay" style="display: none;">
+      <div class="shadow" onclick="closeHelp();"></div>
+      <div class="insert">
+        <h2>
+          Line Following (2-stage)
+        </h2>
+        <p>
+          The two-stage line follower allows the robot to use a color sensor in
+          reflected light intensity mode in order to follow the path of a line.
+          To be more precise, it follows the edge of the line, where there is a
+          high contrast on the mat (between the dark-colored line and the
+          light-colored area surrouding it).
+        </p>
+        <p>
+          It is known as a two-stage follower because it does one of two
+          things; it veers to the left or to the right, based on what the
+          sensor sees. Take for example the left edge of the line being
+          followed; when the sensor sees more white than black, the robot
+          veers to the right (towards the edge of the line), and hwne it sees
+          more black than white, it feers to the left (again, towards the edge
+          of the line).
+        </p>
+        <p>
+          In EV3 Classroom, this program looks like the following:
+        </p>
+        <img type="image/png" src="images/two_stage.png" />
+        <p>
+          The steering of 50 and -50 controls how quickly the robot reacts to
+          not seeing the edge of the line. Using less agressive steering values
+          (such as 30 and -30) allows the robot to progress down the line
+          faster but makes it less responsive to bends/curves in the line.
+        </p>
+        <p>
+          By swapping the 50 and -50 values, the robot follows the opposite
+          side of the line.
+        </p>
+        <p>
+          While simple and easy to understand, the big disadvantage to a
+          two-stage line follower is the rate at which the robot heading
+          wildly swings back and forth. After the robot has traveled the
+          desired distance (be it wheel rotations, another sensor seeing
+          something, etc.), it is difficult to predict the direction that the
+          robot is facing. So, while it has followed the line to a new
+          location, the heading is uncontrolled.
+        </p>
+      </div>
+    </div>
+    <div id="help_3stage" class="overlay" style="display: none;">
+      <div class="shadow" onclick="closeHelp();"></div>
+      <div class="insert">
+        <h2>
+          Line Following (3-stage)
+        </h2>
+        <p>
+          The three-stage line follower is a minor extension of the two-stage
+          line follower. As is implied, there is a third decision that it can
+          make; if the reflected light intensity is "close enough" to 50 (the
+          edge of the line), the robot simply drives straight.
+        </p>
+        <p>
+          With this modification, the robot is generally able to travel along
+          the line faster than with a two-stage line follower (since there are
+          periods of time where it is driving straight). However, it still
+          suffers from the same disadvantage as the two-stage line follower.
+        </p>
+        <p>
+          In EV3 Classroom, this program looks like the following:
+        </p>
+        <img type="image/png" src="images/three_stage.png" />
+      </div>
+    </div>
+    <div id="help_proportional" class="overlay" style="display: none;">
+      <div class="shadow" onclick="closeHelp();"></div>
+      <div class="insert">
+        <h2>
+          Line Following (Proportional)
+        </h2>
+        <p>
+          The proportional line follower is more complex in concept, simpler in
+          implementation, but requires more involved tuning to make it work
+          well (there is no "one size fits all" tuning for a proportional
+          line follower, the tuning tends to be unique to each robot design).
+        </p>
+        <p>
+          The algorithm starts by taking a reflected light intensity reading
+          and subtracting it from 50 (the desired value). The difference is
+          known as the <i>error</i>, i.e. how far the robot is from the desired
+          location. The <i>error</i> is multiplied by a factor known as
+          <i>kP</i>, which controls how quickly the robot responds to being
+          away from the edge of the line. The resulting values is applied to
+          the robot as the steering value.
+        </p>
+        <p>
+          This algorithm mimics the behavior of humans. When walking along a
+          line, humans will gently turn back toward the line if they stray off
+          the line by a small amount. However, it they will aggressively turn
+          back toward the line if they stray off by a large amount. In the same
+          manner, a small <i>error</i> multipled by <i>kP</i> results in a
+          small steering value, while a large <i>error</i> multipled by
+          <i>kP</i> results in a large steering value, just like a human.
+        </p>
+        <p>
+          In EV3 Classroom, this program looks like the following:
+        </p>
+        <img type="image/png" src="images/proportional.png" />
+        <p>
+          Having this program and tuning it are very different things! For
+          advanced control algorithms (such as this), it is typical that
+          implementing the algoritm is rather easy but tuning it to work well
+          on a robot is not as straightforward. The general process is to
+          choose a value for <i>kP</i> (typically 1 is a good starting point)
+          and see how the robot behaves. If it is too slow to respond to the
+          line, double the value of <i>kP</i>; if it reponds too quickly
+          (usually by waddling back and forth like a two-stage line follower),
+          half the value of <i>kP</i>. Repeat this process until <i>kP</i>
+          makes the robot respond in a reasonable fashion, or there are two
+          choices that are on either side (one is a bit too slow and one is a
+          bit too fast); try value of <i>kP</i> between those two to find one
+          that gives the desired behavior.
+        </p>
+        <p>
+          Note that a good value of <i>kP</i> is dependent upon the speed of
+          the robot. If the robot goes faster, <i>kP</i> needs to increase so
+          that the robot responds to the line quicker (since the robot, and by
+          extension the line, is moving quicker). Similarly, if the robot goes
+          slower, <i>kP</i> needs to decrease for the same reason.
+        </p>
+      </div>
+    </div>
+    <div id="help_gyro" class="overlay" style="display: none;">
+      <div class="shadow" onclick="closeHelp();"></div>
+      <div class="insert">
+        <h2>
+          Gyro Driving
+        </h2>
+        <p>
+          Using a gyro to drive straight can be thought of as having the robot
+          follow an imaginary line. Where a real line doesn't exist on the mat,
+          the robot can follow an imaginary one created by the gyro!
+        </p>
+        <p>
+          While any of the previous algorithms (two-stage, three-stage, and
+          proportional) can be used to drive straight with the gyro, it is best
+          to implement the proportional algorithm (really, adapt it to the gyro
+          instead of the light sensor). There are two differences; the gyro
+          angle is read instead of the reflected light intensity, and the
+          target value is the angle that the robot should drive instead of the
+          <i>50</i> value for the edge of the line. The algorithm is otherwise
+          the same.
+        </p>
+        <p>
+          In EV3 Classroom, this program looks like the following:
+        </p>
+        <img type="image/png" src="images/gyro.png" />
+        <p>
+          Like the proportional line follower, the <i>kP</i> value must be
+          tuned. However, the <i>kP</i> value that works for a proportional
+          line follower will not be the same as the <i>kP</i> that is used for
+          a drive straight with the gyro. This is because each sensor returns a
+          different value, that changes at a different rate as the robot moves.
+          The tuning process is exactly the same though.
+        </p>
+        <p>
+          What is sometimes helpful when tuning the drive straight with the
+          gyro algorithm is to nudge the robot off course and see how well and
+          how quickly it corrects itself. This often makes it easier to see how
+          the robot behaves and responds to the <i>kP</i> value that is being
+          tested.
+        </p>
+        <p>
+          Depending on how the gyro is mounted (upside down versus right-side
+          up), a positive change in the gyro angle may require a positive or
+          negative turn direction for the robot (to get it back to the
+          imaginary line). If the turn direction is the opposite of the gyro
+          angle change, having a positive <i>kP</i> value causes the robot to
+          spin wildly (because the "correction" makes the problem worse!). If
+          the robot spins in circles forever, this is the reason. It is simple
+          to fix; simply use a negative value for <i>kP</i>.
         </p>
       </div>
     </div>
